@@ -37,6 +37,7 @@ async def create_tables():
 async def get_link_by_code(db: AsyncSession, short_code: str):
     result = await db.execute(select(Link).where(Link.short_code == short_code))
     return result.scalar_one_or_none()
+    
 # Box may have: 1 row, 0 rows, or error if >1 row (but you have unique, so max 1).
 # scalar_one_or_none() = open box:If 1 row → give me that Link object
 # If 0 rows → give me None (means "not found")If >1 rows → crash (which is good, shows bug)
@@ -45,3 +46,6 @@ async def get_link_by_code(db: AsyncSession, short_code: str):
 if __name__ == "__main__":
     asyncio.run(create_tables())
 
+
+# python -c "import sqlite3; conn=sqlite3.connect('tynly.db'); cur=conn.cursor(); cur.execute('SELECT name FROM sqlite_master WHERE type=\"table\"'); print(cur.fetchall())"
+# python -c "import sqlite3; conn=sqlite3.connect('tynly.db'); cur=conn.cursor(); cur.execute('SELECT * FROM links'); print(cur.fetchall())"
