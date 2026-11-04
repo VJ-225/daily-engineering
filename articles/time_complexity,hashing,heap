@@ -1,0 +1,77 @@
+Hashing, Load Factor, and Heap: How TYNLy Finds Things Fast
+If TYNLy had to search through a list of 1 lakh URLs one by one to find one short code, it would be slow. Hashing and Heap fix that.
+
+1. Hashing: Jump, Don't Search
+Hashing turns a key into a bucket number.
+Example:
+urls["a1B2"] = "amazon.com"
+What Python does:
+hash("a1B2") = 8473284732 % 1000 = 732Stores it in bucket 732To find it later, Python does the same calculation again and jumps directly to bucket 732. No loop. This is O(1).
+Why we use it in TYNLy: Finding a URL by its short code should be instant, even with 1 lakh URLs.
+
+2. Buckets and Collisions
+Collision means two different keys land in the same bucket.
+Example:
+hash("a1B2") % 1000 = 732hash("x9K1") % 1000 = 732Both go to bucket 732. Inside bucket 732, Python keeps a small list: ["a1B2", "x9K1"]
+This happens because memory is limited. We cannot have 1 lakh buckets from the start. A small collision is okay.
+
+3. Load Factor: When To Worry
+Load factor tells us if buckets are getting too crowded.
+Formula: Load Factor = Total Keys / Total Buckets
+Good Example: 700 keys / 1000 buckets = 0.7. Each bucket has 0 or 1 item. Search is fast.Bad Example: 1,00,000 keys / 10 buckets = 10,000. Each bucket has 10,000 items. Search becomes slow, like a list.Rule: Keep load factor below 0.7.
+Fix: When it crosses the limit, Python creates more buckets and moves all keys again. This is called Rehashing. We trade a little extra memory for a lot of speed.
+
+4. How Do We Know Which Bucket?
+We don't remember it. We calculate it every time.
+Hash function is deterministic. Same key always gives the same number.
+Example: Think of a locker system.
+Your name is "Rahul"Your locker number is always sum("Rahul") % 1000 = 512You don't need to remember 512. You calculate it from your name every time you come.Same for hashing. The key itself tells its bucket. If the key is not in that bucket, it was never saved.
+
+5. Heap: Finding Top 5 Without Sorting All
+For LookAlike, we need Top 5 Most Similar URLs from 1 lakh URLs.
+Sorting all 1 lakh is O(n log n) and wasteful. Why sort 99,995 URLs we will throw away?
+Heap keeps only a small box of 5.
+Example: Box already has [90, 92, 95, 97, 99]. Smallest in box is 90.
+New URL with score 91 comes. 91 > 90, so kick out 90, put 91 in. Box becomes [91, 92, 95, 97, 99].New URL with score 80 comes. 80 < 91, so throw it away.At the end, the box has Top 5. Cost is O(n log 5), almost O(n).
+Min-Heap: Smallest on top. Used for Top 5 Largest.Max-Heap: Largest on top. Used for Top 5 Smallest.For LookAlike, we use a Min-Heap of size 5.
+Important: We still check all 1 lakh URLs one by one. Checking is just one cheap compare O(1). Sorting is expensive. Heap saves us from sorting.
+
+6. Code: Heap for LookAlike in Python
+We use Python's heapq - it is already a Min-Heap.javascriptimport heapq
+
+scores = [
+    (90, "a1B2"),
+    (92, "x9K1"),
+    (95, "m3N4"),
+    (97, "p7Q8"),
+    (99, "z2W5"),
+    (91, "k8L9"),
+    (80, "d4F6"),
+]
+
+top5 = []
+
+for score, url in scores:
+    if len(top5) < 5:
+        heapq.heappush(top5, (score, url))
+    else:
+        # top5[0] is always the smallest in box
+        if score > top5[0][0]:
+            heapq.heapreplace(top5, (score, url))
+        # else: throw away, do nothing
+
+print(top5)How it works:
+heapq.heappush = Put in box. Box sorts itself.top5[0] = Always smallest in box. First it is (90, "a1B2").(91, "k8L9") comes: 91 > 90, so heapreplace kicks out 90, puts 91 in.(80, "d4F6") comes: 80 < 91, so we do nothing. Throw away.(100, "newUrl") comes: 100 > 91, so 91 gets kicked out, 100 goes in.Final box = [(92...), (95...), (97...), (99...), (100...)] - Top 5.
+
+7. Time and Space Complexity
+Hashing - Dict / Hash Table:
+Insert: Average O(1), Worst O(n) when all collide in one bucketSearch: Average O(1), Worst O(n)Delete: Average O(1), Worst O(n)Space: O(n) for keys + O(m) for buckets. m = number of buckets.Note: Worst case O(n) happens only when load factor is very high and no rehashing. With rehashing, average stays O(1).Heap - Top K with Min-Heap of size K (K=5):
+Build / Insert one element: O(log K) = O(log 5)Get smallest (top5[0]): O(1)Remove smallest / Replace: O(log K)Find Top K from n items: O(n log K). For K=5, almost O(n).Sorting all n: O(n log n) - much slower than O(n log K) when K is small.Space: O(K) = O(5) for heap, plus O(n) to store scores if you keep all. Heap itself is tiny.Comparison:
+Find 1 URL by code: O(n) linear search vs O(1) hashingFind Top 5 from 1 lakh: O(n log n) sorting vs O(n log 5) heapHeap space: O(n) to sort vs O(5) onlySummaryConceptOne LineHashingCalculate bucket from key, jump there in O(1)CollisionTwo keys in same bucket, store as listLoad FactorKeys / Buckets, keep it <= 0.7RehashingCreate more buckets when load factor is highHeapKeep only Top 5 in a box, don't sort all
+Notes: My Questions and Answers
+Q: But we have to check for all the remaining 99995 urls one by one right?
+A: Yes. Exactly right. We still check all 99995 one by one. No way around that. But checking is NOT same as sorting. Checking = One compare, Is 91 > 90? That's O(1). Sorting = Comparing every URL with every other URL again and again to put them in perfect order. That's O(n log n). Example: 1 lakh students, Top 5 tallest. Sorting way: Make all stand in line. Heap way: Keep 5 chairs. 6th student comes, just check if taller than shortest sitting. If no, goes home. If yes, shortest gets up. You still saw all 1 lakh, but never made them stand in full line. So we visit all 1 lakh = O(n), but only do expensive insert when better than smallest = O(log 5). Total = O(n log 5) = Almost O(n).
+Q: What will happen if next score is (100, newUrl)?
+A: Inside. 100 > 91 (smallest in box), so 91 gets kicked out, 100 goes in. New box = [92, 95, 97, 99, 100].
+Q: Where are the examples?
+A: Added examples for every concept - hashing bucket 732, collision in bucket 732, load factor 0.7 vs 10000, locker example for bucket calculation, heap box [90,92,95,97,99] with 91 kept and 80 thrown.
