@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from datetime import datetime 
 from sqlalchemy import func, DateTime
+from typing import Optional
 
 DATABASE_URL = "sqlite+aiosqlite:///./tynly.db"
 
@@ -22,6 +23,7 @@ class Link(Base):
     long_url: Mapped[str] = mapped_column(Text,nullable = False)
     clicks: Mapped[int] = mapped_column(Integer, default=0,server_default=text("0"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),server_default=func.now())
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True),nullable=True)
     
     # Why: default is Python-side, server_default is DB-side. Without it, old rows will have NULL clicks.
 
@@ -37,7 +39,7 @@ async def create_tables():
 async def get_link_by_code(db: AsyncSession, short_code: str):
     result = await db.execute(select(Link).where(Link.short_code == short_code))
     return result.scalar_one_or_none()
-    
+
 # Box may have: 1 row, 0 rows, or error if >1 row (but you have unique, so max 1).
 # scalar_one_or_none() = open box:If 1 row → give me that Link object
 # If 0 rows → give me None (means "not found")If >1 rows → crash (which is good, shows bug)
